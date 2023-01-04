@@ -96,6 +96,7 @@ def main(cfg):
 
     trainer = Trainer(
         gpus=cfg.NUM_GPUS,
+        # devices=[1],
         num_nodes=cfg.NUM_SHARDS,
         accelerator=cfg.SOLVER.ACCELERATOR,
         max_epochs=cfg.SOLVER.MAX_EPOCH,
@@ -133,7 +134,7 @@ if __name__ == "__main__":
             args.working_directory,
             job_name=args.job_name,
             time="72:00:00",
-            partition="learnfair",
+            partition="pixar",
             gpus_per_node=cfg.NUM_GPUS,
             ntasks_per_node=cfg.NUM_GPUS,
             cpus_per_task=10,

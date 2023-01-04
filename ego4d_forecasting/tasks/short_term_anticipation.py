@@ -44,7 +44,7 @@ class ShortTermAnticipationTask(VideoTask):
 
         verb_loss = self.verb_loss_fun(pred_verb, verb_labels)
 
-        #compute ttc loss only on valid targets
+        # compute ttc loss only on valid targets
         valid_ttcs = ~torch.isnan(ttc_targets)
         pred_ttc = pred_ttc[valid_ttcs]
         ttc_targets = ttc_targets[valid_ttcs]

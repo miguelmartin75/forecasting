@@ -4,6 +4,7 @@
 """Loss functions."""
 
 import torch.nn as nn
+        
 
 _LOSSES = {
     "cross_entropy": nn.CrossEntropyLoss,
@@ -12,6 +13,7 @@ _LOSSES = {
     "mse": nn.MSELoss,
     'smooth_l1': nn.SmoothL1Loss,
 }
+
 
 
 def get_loss_func(loss_name):

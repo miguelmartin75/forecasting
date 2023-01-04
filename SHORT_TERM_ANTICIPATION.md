@@ -32,17 +32,17 @@ Canonical videos and annotations can be downloaded using the following command:
 #### Low-resolution RGB frames
 To facilitate the training and testing of the baseline model, we will pre-extract low-resolution (height=320 pixels) RGB frames from the videos. This is done by using the script `dump_frames_to_lmdb_files.py` located in the `tools/short_term_anticipation/` directory. The script takes as input the path to the videos, the path to the annotations, and the path to the output directory, and creates a lmdb database  for each video. By default, the script extracts the video frames preceeding each train/val/test annotation with a duration of 32 frames (a larger context can be set via the `--context_frames` argument). The extraction process can be launched with the following command:
 
-`mkdir -p short_term_anticipation/data`
+`mkdir -p /checkpoint/miguelmartin/short_term_anticipation`
 
-`python tools/short_term_anticipation/dump_frames_to_lmdb_files.py ~/ego4d_data/v1/annotations/ ~/ego4d_data/v1/full_scale/ short_term_anticipation/data/lmdb`
+`python tools/short_term_anticipation/dump_frames_to_lmdb_files.py ./assets/sta_v2/ /datasets01/ego4d_track2/v1/full_scale/ /checkpoint/miguelmartin/short_term_anticipation/lmdb`
 
 With the default setting, we expect the output lmdb to occupy about 60GB of disk space.
 #### High-resolution image frames
 To perform object detection, we will need to extract RGB frames corresponding to the annotations from the videos at their original resolution. We can use the following command to extract the RGB frames:
 
-`mkdir short_term_anticipation/data/object_frames/`
+`mkdir /checkpoint/miguelmartin/short_term_anticipation/object_frames/`
 
-`python tools/short_term_anticipation/extract_object_frames.py ~/ego4d_data/v1/annotations/ ~/ego4d_data/v1/full_scale/ short_term_anticipation/data/object_frames/`
+`python tools/short_term_anticipation/extract_object_frames.py --jobs 10 ./assets/sta_v2/ /datasets01/ego4d_track2/v1/full_scale /checkpoint/miguelmartin/short_term_anticipation/object_frames/`
 ## Replicating the results of the baseline model
 We provide pre-trained models and scripts to replicate the results of the baseline model. The following sections discuss how to download the pre-trained models and train and test the different components of the baseline.
 
@@ -130,16 +130,24 @@ We use the Detectron2 library to train the Faster RCNN model and adopt a ResNet-
 #### Generating COCO-style annotations
 To train the object detector, we will first need to produce the COCO-style annotations from the JSON annotations. We can create the COCO-style annotations for the train and val sets with the following commands:
 
-`mkdir short_term_anticipation/annotations`
+`mkdir /checkpoint/miguelmartin/short_term_anticipation/annotations`
 
-`python tools/short_term_anticipation/create_coco_annotations.py ~/ego4d_data/v1/annotations/fho_sta_train.json short_term_anticipation/annotations/train_coco.json`
+`python tools/short_term_anticipation/create_coco_annotations.py ./assets/sta_v2/fho_sta_train.json /checkpoint/miguelmartin/short_term_anticipation/annotations/train_coco.json`
 
-`python tools/short_term_anticipation/create_coco_annotations.py ~/ego4d_data/v1/annotations/fho_sta_val.json short_term_anticipation/annotations/val_coco.json`
+`python tools/short_term_anticipation/create_coco_annotations.py ./assets/sta_v2/fho_sta_val.json /checkpoint/miguelmartin/short_term_anticipation/annotations/val_coco.json`
 
 #### Training the object detector
 The model can be trained using the following command:
 
- `python tools/short_term_anticipation/train_object_detector.py short_term_anticipation/annotations/train_coco.json short_term_anticipation/annotations/val_coco.json short_term_anticipation/data/object_frames/ short_term_anticipation/models/object_detector/`
+```
+python tools/short_term_anticipation/train_object_detector.py \
+    /checkpoint/miguelmartin/short_term_anticipation/annotations/train_coco.json \
+    /checkpoint/miguelmartin/short_term_anticipation/annotations/val_coco.json \
+    /checkpoint/miguelmartin/short_term_anticipation/object_frames/ \
+    /checkpoint/miguelmartin/short_term_anticipation/models/object_detector/ \
+    --num_gpus 1 \
+    --slurm 1
+```
 
 After training the model, we can use produce object detections on the training, validation and test sets following the instructions reported in the [Producing object detections](#producing-object-detections) section.
 

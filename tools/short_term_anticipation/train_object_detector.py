@@ -39,7 +39,7 @@ def main(args):
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file(bases[args.arch][args.base]))
 
-    base_len = 118287 # the length of the COCO dataset
+    base_len = 15_000  # the length of the COCO dataset
 
     current_len = len(data) # the length of the loaded dataset
     num_classes = len(metadata.thing_classes)

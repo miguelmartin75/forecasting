@@ -34,7 +34,9 @@ To facilitate the training and testing of the baseline model, we will pre-extrac
 
 `mkdir -p /checkpoint/miguelmartin/short_term_anticipation`
 
-`python tools/short_term_anticipation/dump_frames_to_lmdb_files.py ./assets/sta_v2/ /datasets01/ego4d_track2/v1/full_scale/ /checkpoint/miguelmartin/short_term_anticipation/lmdb`
+`
+python tools/short_term_anticipation/dump_frames_to_lmdb_files.py ./assets/sta_v2/ /datasets01/ego4d_track2/v1/full_scale/ /checkpoint/miguelmartin/short_term_anticipation/lmdb
+`
 
 With the default setting, we expect the output lmdb to occupy about 60GB of disk space.
 #### High-resolution image frames
@@ -62,7 +64,30 @@ cp ~/ego4d_data/v1/sta_models/slowfast_model.ckpt short_term_anticipation/models
 ### Producing object detections (optional)
 Pre-extracted object detections downloaded at the previous step can be used to train/test the slowfast model. **Alternatively**, we can produce object detections on the validation and test set using the object detection model with the following command:
 
-`python tools/short_term_anticipation/produce_object_detections.py short_term_anticipation/models/object_detector.pth ~/ego4d_data/v1/annotations/ short_term_anticipation/data/object_frames/ short_term_anticipation/data/object_detections.json`
+```
+V1_MODEL=/checkpoint/miguelmartin/ego4d_data/v1/sta_models/object_detector.pth
+python tools/short_term_anticipation/produce_object_detections.py $V1_MODEL ./assets/sta_v2_v1_nouns /checkpoint/miguelmartin/short_term_anticipation/object_frames/ /checkpoint/miguelmartin/short_term_anticipation/object_detections_v1_on_v2_data.json
+
+V2_MODEL=/checkpoint/miguelmartin/short_term_anticipation/models/object_detector/best_model_0109999.pth
+python tools/short_term_anticipation/produce_object_detections.py $V2_MODEL ./assets/sta_v2_v1_nouns /checkpoint/miguelmartin/short_term_anticipation/object_frames/ /checkpoint/miguelmartin/short_term_anticipation/object_detections_v2.json
+
+MODEL_PATH=/checkpoint/miguelmartin/short_term_anticipation/models/v2_v1_od_1/
+OBJ_DETS=/checkpoint/miguelmartin/short_term_anticipation/object_detections_v1_on_v2_data.json
+mkdir -p $MODEL_PATH
+python scripts/run_sta.py \
+    --cfg configs/Ego4dShortTermAnticipation/SLOWFAST_32x1_8x4_R50.yaml \
+    --working_directory $(pwd)/experiments/v2_v1_od_1 \
+    --on_cluster \
+    EGO4D_STA.ANNOTATION_DIR /private/home/miguelmartin/ego4d/forecasting/assets/sta_v2_v1_nouns \
+    EGO4D_STA.RGB_LMDB_DIR /checkpoint/miguelmartin/short_term_anticipation/lmdb \
+    EGO4D_STA.OBJ_DETECTIONS $OBJ_DETS \
+    NUM_GPUS 4 \
+    TRAIN.BATCH_SIZE 32 \
+    TEST.BATCH_SIZE 64 \
+    OUTPUT_DIR $MODEL_PATH
+
+tensorboard --port 3000 --logdir=/checkpoint/miguelmartin/short_term_anticipation/models/v2_v1_od/
+```
 ### Testing the slowfast model
 #### Validation set
 The following command will run the baseline on the validation set:
@@ -78,7 +103,7 @@ python scripts/run_sta.py \
     DATA.CHECKPOINT_MODULE_FILE_PATH "" \
     CHECKPOINT_VERSION "" \
     TEST.BATCH_SIZE 1 NUM_GPUS 1 \
-    EGO4D_STA.OBJ_DETECTIONS short_term_anticipation/data/object_detections.json \
+    EGO4D_STA.OBJ_DETECTIONS /checkpoint/miguelmartin/ego4d_data/short_term_anticipation/data/object_detections.json \
     EGO4D_STA.ANNOTATION_DIR ~/ego4d_data/v1/annotations/ \
     EGO4D_STA.RGB_LMDB_DIR short_term_anticipation/data/lmdb/ \
     EGO4D_STA.TEST_LISTS "['fho_sta_val.json']"
@@ -114,6 +139,8 @@ We provide scripts to evaluate the results of the baseline model. The validation
 
 ```
 python tools/short_term_anticipation/evaluate_short_term_anticipation_results.py short_term_anticipation/results/short_term_anticipation_results_val.json ~/ego4d_data/v1/annotations/fho_sta_val.json
+
+python tools/short_term_anticipation/evaluate_short_term_anticipation_results.py short_term_anticipation/results/short_term_anticipation_results_val.json ~/ego4d_data/v1/annotations/fho_sta_val.json
 ```
 
 ## Training the baseline
@@ -130,23 +157,28 @@ We use the Detectron2 library to train the Faster RCNN model and adopt a ResNet-
 #### Generating COCO-style annotations
 To train the object detector, we will first need to produce the COCO-style annotations from the JSON annotations. We can create the COCO-style annotations for the train and val sets with the following commands:
 
-`mkdir /checkpoint/miguelmartin/short_term_anticipation/annotations`
+```
+mkdir /checkpoint/miguelmartin/short_term_anticipation/annotations
 
-`python tools/short_term_anticipation/create_coco_annotations.py ./assets/sta_v2/fho_sta_train.json /checkpoint/miguelmartin/short_term_anticipation/annotations/train_coco.json`
+python tools/short_term_anticipation/create_coco_annotations.py ./assets/sta_v1_nv/fho_sta_train.json /checkpoint/miguelmartin/short_term_anticipation/annotations/train_coco_v2_v1nv.json
 
-`python tools/short_term_anticipation/create_coco_annotations.py ./assets/sta_v2/fho_sta_val.json /checkpoint/miguelmartin/short_term_anticipation/annotations/val_coco.json`
+python tools/short_term_anticipation/create_coco_annotations.py ./assets/sta_v1_nv/fho_sta_val.json /checkpoint/miguelmartin/short_term_anticipation/annotations/val_coco_v2_v1nv.json
+```
 
 #### Training the object detector
 The model can be trained using the following command:
 
 ```
-python tools/short_term_anticipation/train_object_detector.py \
+python scripts/run_obj_det.py \
     /checkpoint/miguelmartin/short_term_anticipation/annotations/train_coco.json \
     /checkpoint/miguelmartin/short_term_anticipation/annotations/val_coco.json \
     /checkpoint/miguelmartin/short_term_anticipation/object_frames/ \
-    /checkpoint/miguelmartin/short_term_anticipation/models/object_detector/ \
-    --num_gpus 1 \
-    --slurm 1
+    /checkpoint/miguelmartin/short_term_anticipation/models/ptl_8gpu_bs16/ \
+    --slurm 1 \
+    --job_name "experiments/ptl_8gpu_bs16" \
+    --num_gpus 8 \
+    --batch_size 16 \
+    --working_directory $(pwd)
 ```
 
 After training the model, we can use produce object detections on the training, validation and test sets following the instructions reported in the [Producing object detections](#producing-object-detections) section.
@@ -162,13 +194,35 @@ wget https://dl.fbaipublicfiles.com/pyslowfast/model_zoo/kinetics400/SLOWFAST_8x
 The following command can be used to train the Slow-Fast model:
 
 ```
-mkdir -p short_term_anticipation/models/slowfast_model/
+MODEL_PATH=/checkpoint/miguelmartin/short_term_anticipation/models/v2_data_v1_od_4_gpu_bs_32/
+OBJ_DETS=/checkpoint/miguelmartin/short_term_anticipation/object_detections_v1_on_v2_data.json
+mkdir -p $MODEL_PATH
 python scripts/run_sta.py \
     --cfg configs/Ego4dShortTermAnticipation/SLOWFAST_32x1_8x4_R50.yaml \
-    EGO4D_STA.ANNOTATION_DIR ~/ego4d_data/v1/annotations \
-    EGO4D_STA.RGB_LMDB_DIR short_term_anticipation/data/lmdb \
-    EGO4D_STA.OBJ_DETECTIONS short_term_anticipation/data/object_detections.json 
-    OUTPUT_DIR short_term_anticipation/models/slowfast_model/
+    --on_cluster \
+    --working_directory $(pwd)/v2_data_v1_od_4_gpu_bs_32 \
+    EGO4D_STA.ANNOTATION_DIR /private/home/miguelmartin/ego4d/forecasting/assets/sta_v2 \
+    EGO4D_STA.RGB_LMDB_DIR /checkpoint/miguelmartin/short_term_anticipation/lmdb \
+    EGO4D_STA.OBJ_DETECTIONS $OBJ_DETS \
+    NUM_GPUS 4 \
+    TRAIN.BATCH_SIZE 32 \
+    TEST.BATCH_SIZE 64 \
+    OUTPUT_DIR $MODEL_PATH
+
+MODEL_PATH=/checkpoint/miguelmartin/short_term_anticipation/models/v2_data_v1_od_1_gpu/
+OBJ_DETS=/checkpoint/miguelmartin/short_term_anticipation/object_detections_v1.json
+mkdir -p $MODEL_PATH
+python scripts/run_sta.py \
+    --on_cluster \
+    --cfg configs/Ego4dShortTermAnticipation/SLOWFAST_32x1_8x4_R50.yaml \
+    --working_directory $(pwd)/v2_data_v1_od \
+    EGO4D_STA.ANNOTATION_DIR /private/home/miguelmartin/ego4d/forecasting/assets/sta_v2 \
+    EGO4D_STA.RGB_LMDB_DIR /checkpoint/miguelmartin/short_term_anticipation/lmdb \
+    EGO4D_STA.OBJ_DETECTIONS $OBJ_DETS \
+    NUM_GPUS 1 \
+    TRAIN.BATCH_SIZE 16 \
+    TEST.BATCH_SIZE 32 \
+    OUTPUT_DIR $MODEL_PATH
 ```
 
 After training the model, we can copy the model weights from `short_term_anticipation/models/slowfast_model/lightning_logs/version_x/checkpoints/best_model_checkpoint.ckpt` to `short_term_anticipation/models/slowfast_model.ckpt` and follow the instructions reported at the [Testing the Slow-Fast model](#testing-the-slowfast-model) section. `version_x` and `best_model_checkpoint.ckpt` identify the current version and the best epoch of the model. For instance, the path could be: `short_term_anticipation/models/slowfast_model/lightning_logs/version_0/checkpoints/epoch=22-step=22585.ckpt`.

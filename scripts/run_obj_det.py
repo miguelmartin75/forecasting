@@ -4,8 +4,8 @@ import os
 from argparse import ArgumentParser
 from detectron2 import model_zoo
 from pathlib import Path
-# from tools.short_term_anticipation.train_object_detector import run_main
-from tools.short_term_anticipation.train_object_detector_ptl import main
+from tools.short_term_anticipation.train_object_detector import run_main
+# from tools.short_term_anticipation.train_object_detector_ptl import main
 # from tools.short_term_anticipation.train_object_detector_ptl import train
 from scripts.slurm import copy_and_run_with_config
 from detectron2.config import get_cfg
@@ -58,7 +58,7 @@ if __name__ == "__main__":
 
     # main(args)
     copy_and_run_with_config(
-        main,
+        run_main,
         args,
         args.working_directory,
         job_name=args.job_name,
